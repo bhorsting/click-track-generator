@@ -38,6 +38,10 @@
           <span class="file-icon">🎵</span>
           {{ file.name }}
         </div>
+        <div v-if="clickTrackDuration > 0" class="duration-info">
+          <span class="duration-label">Click Track Duration:</span>
+          <span class="duration-value">{{ formattedDuration }}</span>
+        </div>
       </div>
 
       <div v-if="selectedFiles.length > 0" style="margin-top: 1.5rem;">
@@ -61,8 +65,14 @@
     <div v-if="isProcessing" class="card">
       <div class="processing">
         <div class="spinner"></div>
-        <div class="processing-text">Processing audio files...</div>
-        <div class="processing-subtext">{{ processingStep }}</div>
+        <div class="processing-text">{{ processingStep }}</div>
+        <div class="processing-subtext">{{ progressMessage }}</div>
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: progress + '%' }"></div>
+          </div>
+          <div class="progress-text">{{ progress }}%</div>
+        </div>
       </div>
     </div>
 
@@ -119,6 +129,10 @@ export default {
       success,
       generatedVideoUrl,
       processingStep,
+      progress,
+      progressMessage,
+      clickTrackDuration,
+      formattedDuration,
       sortedFiles,
       handleFileSelect,
       handleDragOver,
@@ -148,6 +162,10 @@ export default {
       success,
       generatedVideoUrl,
       processingStep,
+      progress,
+      progressMessage,
+      clickTrackDuration,
+      formattedDuration,
       fileInput,
       videoPlayer,
       sortedFiles,

@@ -11,6 +11,31 @@ export function useClickTrackGenerator() {
   const generatedVideoUrl = ref('')
   const processingStep = ref('')
   const ffmpeg = ref(null)
+  const progress = ref(0)
+  const progressMessage = ref('')
+  const clickTrackDuration = ref(0)
+  let progressInterval = null
+
+  const startProgressSimulation = (message, duration = 5000) => {
+    progress.value = 0
+    progressMessage.value = message
+    let currentProgress = 0
+    
+    progressInterval = setInterval(() => {
+      currentProgress += Math.random() * 15 + 5 // Random increment between 5-20
+      if (currentProgress > 90) currentProgress = 90 // Don't reach 100% until operation completes
+      progress.value = Math.min(currentProgress, 90)
+    }, 200)
+  }
+
+  const stopProgressSimulation = (message) => {
+    if (progressInterval) {
+      clearInterval(progressInterval)
+      progressInterval = null
+    }
+    progress.value = 100
+    progressMessage.value = message
+  }
 
   const sortedFiles = computed(() => {
     return [...selectedFiles.value].sort((a, b) => {
@@ -20,16 +45,42 @@ export function useClickTrackGenerator() {
     })
   })
 
+  const formattedDuration = computed(() => {
+    if (clickTrackDuration.value === 0) return '0:00'
+    const minutes = Math.floor(clickTrackDuration.value / 60)
+    const seconds = Math.floor(clickTrackDuration.value % 60)
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  })
+
   const extractNumber = (filename) => {
     const match = filename.match(/(\d+)\.wav$/)
     return match ? parseInt(match[1]) : 0
+  }
+
+  const getAudioDuration = (file) => {
+    return new Promise((resolve) => {
+      const audio = new Audio()
+      const url = URL.createObjectURL(file)
+      
+      audio.addEventListener('loadedmetadata', () => {
+        URL.revokeObjectURL(url)
+        resolve(audio.duration)
+      })
+      
+      audio.addEventListener('error', () => {
+        URL.revokeObjectURL(url)
+        resolve(0)
+      })
+      
+      audio.src = url
+    })
   }
 
   const triggerFileInput = () => {
     // This will be handled by the parent component
   }
 
-  const handleFileSelect = (event) => {
+  const handleFileSelect = async (event) => {
     const files = Array.from(event.target.files).filter(file => 
       file.name.toLowerCase().endsWith('.wav')
     )
@@ -37,6 +88,17 @@ export function useClickTrackGenerator() {
     error.value = ''
     success.value = false
     generatedVideoUrl.value = ''
+    
+    // Extract click track duration if we have files
+    if (files.length > 0) {
+      const sortedFilesList = [...files].sort((a, b) => {
+        const aNum = extractNumber(a.name)
+        const bNum = extractNumber(b.name)
+        return aNum - bNum
+      })
+      const clickTrackFile = sortedFilesList[sortedFilesList.length - 1]
+      clickTrackDuration.value = await getAudioDuration(clickTrackFile)
+    }
   }
 
   const handleDragOver = (event) => {
@@ -47,7 +109,7 @@ export function useClickTrackGenerator() {
     isDragOver.value = false
   }
 
-  const handleDrop = (event) => {
+  const handleDrop = async (event) => {
     isDragOver.value = false
     const files = Array.from(event.dataTransfer.files).filter(file => 
       file.name.toLowerCase().endsWith('.wav')
@@ -56,6 +118,17 @@ export function useClickTrackGenerator() {
     error.value = ''
     success.value = false
     generatedVideoUrl.value = ''
+    
+    // Extract click track duration if we have files
+    if (files.length > 0) {
+      const sortedFilesList = [...files].sort((a, b) => {
+        const aNum = extractNumber(a.name)
+        const bNum = extractNumber(b.name)
+        return aNum - bNum
+      })
+      const clickTrackFile = sortedFilesList[sortedFilesList.length - 1]
+      clickTrackDuration.value = await getAudioDuration(clickTrackFile)
+    }
   }
 
   const clearFiles = () => {
@@ -63,6 +136,7 @@ export function useClickTrackGenerator() {
     error.value = ''
     success.value = false
     generatedVideoUrl.value = ''
+    clickTrackDuration.value = 0
   }
 
   const initializeFFmpeg = async () => {
@@ -169,7 +243,9 @@ export function useClickTrackGenerator() {
       }
 
       console.log('🔧 Mix command:', mixCommand)
+      startProgressSimulation('Mixing audio...')
       await ffmpeg.value.exec(mixCommand)
+      stopProgressSimulation('Mixed audio complete')
       console.log('✅ Mixed audio created successfully')
 
       processingStep.value = 'Generating waveform video...'
@@ -180,7 +256,7 @@ export function useClickTrackGenerator() {
       const waveformCommand = [
         '-i', mixedAudioFile,
         '-filter_complex', 
-        'showwaves=s=320x240:mode=line:colors=0x667eea|0x764ba2:scale=sqrt',
+        'showwaves=s=320x240:mode=line:draw=full:colors=0xffffff|0xff6600:scale=sqrt',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-pix_fmt', 'yuv420p',
@@ -189,7 +265,9 @@ export function useClickTrackGenerator() {
       ]
 
       console.log('🔧 Waveform command:', waveformCommand)
+      startProgressSimulation('Generating waveform...')
       await ffmpeg.value.exec(waveformCommand)
+      stopProgressSimulation('Waveform complete')
       console.log('✅ Waveform video created successfully')
 
       processingStep.value = 'Combining video with audio tracks...'
@@ -219,7 +297,9 @@ export function useClickTrackGenerator() {
       ]
 
       console.log('🔧 Final command:', finalCommand)
+      startProgressSimulation('Finalizing video...')
       await ffmpeg.value.exec(finalCommand)
+      stopProgressSimulation('Video complete')
       console.log('✅ Final video created successfully')
 
       processingStep.value = 'Finalizing video...'
@@ -258,6 +338,10 @@ export function useClickTrackGenerator() {
       })
       error.value = err.message || 'An error occurred during processing'
     } finally {
+      if (progressInterval) {
+        clearInterval(progressInterval)
+        progressInterval = null
+      }
       isProcessing.value = false
     }
   }
@@ -273,27 +357,31 @@ export function useClickTrackGenerator() {
     document.body.removeChild(link)
   }
 
-  return {
-    // State
-    selectedFiles,
-    isProcessing,
-    isDragOver,
-    error,
-    success,
-    generatedVideoUrl,
-    processingStep,
-    
-    // Computed
-    sortedFiles,
-    
-    // Methods
-    triggerFileInput,
-    handleFileSelect,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-    clearFiles,
-    processFiles,
-    downloadVideo
-  }
+    return {
+      // State
+      selectedFiles,
+      isProcessing,
+      isDragOver,
+      error,
+      success,
+      generatedVideoUrl,
+      processingStep,
+      progress,
+      progressMessage,
+      clickTrackDuration,
+      
+      // Computed
+      sortedFiles,
+      formattedDuration,
+      
+      // Methods
+      triggerFileInput,
+      handleFileSelect,
+      handleDragOver,
+      handleDragLeave,
+      handleDrop,
+      clearFiles,
+      processFiles,
+      downloadVideo
+    }
 }
