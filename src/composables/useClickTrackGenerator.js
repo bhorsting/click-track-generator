@@ -87,9 +87,12 @@ export function useClickTrackGenerator() {
       success.value = false
       generatedVideoUrl.value = ''
 
+      console.log('🎬 Starting video processing...')
       await initializeFFmpeg()
 
       const sortedFilesList = sortedFiles.value
+      console.log(`📁 Processing ${sortedFilesList.length} files:`, sortedFilesList.map(f => f.name))
+      
       if (sortedFilesList.length < 2) {
         throw new Error('Need at least 2 WAV files to process')
       }
@@ -97,14 +100,21 @@ export function useClickTrackGenerator() {
       // Separate the click track (last file) from the mix files
       const clickTrackFile = sortedFilesList[sortedFilesList.length - 1]
       const mixFiles = sortedFilesList.slice(0, -1)
+      
+      console.log('🎵 Mix files:', mixFiles.map(f => f.name))
+      console.log('🎯 Click track:', clickTrackFile.name)
 
       processingStep.value = 'Uploading files to FFmpeg...'
+      console.log('📤 Uploading files to FFmpeg...')
 
       // Clean up any existing files first
       try {
+        console.log('🧹 Cleaning up existing files...')
         await ffmpeg.value.deleteFile('output.mp4')
+        await ffmpeg.value.deleteFile('mixed_audio.wav')
+        await ffmpeg.value.deleteFile('waveform_video.mp4')
       } catch (e) {
-        // File doesn't exist, that's fine
+        console.log('ℹ️ No existing files to clean up')
       }
 
       // Write all files to FFmpeg with sanitized names
@@ -112,41 +122,28 @@ export function useClickTrackGenerator() {
       for (let i = 0; i < sortedFilesList.length; i++) {
         const file = sortedFilesList[i]
         const sanitizedName = `input${i}.wav`
+        console.log(`📝 Writing ${file.name} as ${sanitizedName}`)
         const data = await fetchFile(file)
         await ffmpeg.value.writeFile(sanitizedName, data)
         fileMap.set(file, sanitizedName)
       }
 
-      processingStep.value = 'Mixing audio tracks...'
+      processingStep.value = 'Creating mixed audio track...'
+      console.log('🎼 Creating mixed audio track...')
 
-      // Create the final video with both mixed audio and click track
-      const outputFileName = 'output.mp4'
-      const mixFileName = fileMap.get(mixFiles[0])
-      const clickFileName = fileMap.get(clickTrackFile)
-
-      let ffmpegArgs = [
-        '-f', 'lavfi',
-        '-i', 'color=c=black:s=320x240:r=30'
-      ]
+      // First, create the mixed audio track
+      const mixedAudioFile = 'mixed_audio.wav'
+      let mixCommand = []
 
       if (mixFiles.length === 1) {
-        // Single mix file
-        ffmpegArgs.push(
-          '-i', mixFileName,
-          '-i', clickFileName,
-          '-c:v', 'libx264',
-          '-pix_fmt', 'yuv420p',
-          '-c:a', 'aac',
-          '-b:a', '320k',
+        // Single mix file - just copy it
+        mixCommand = [
+          '-i', fileMap.get(mixFiles[0]),
+          '-c:a', 'pcm_s16le',
           '-ar', '48000',
           '-ac', '2',
-          '-map', '1:a',
-          '-map', '2:a',
-          '-metadata:s:a:0', 'title=Mixed Audio',
-          '-metadata:s:a:1', 'title=Click Track',
-          '-shortest',
-          outputFileName
-        )
+          mixedAudioFile
+        ]
       } else {
         // Multiple mix files - create filter complex
         const inputArgs = []
@@ -155,59 +152,110 @@ export function useClickTrackGenerator() {
         for (let i = 0; i < mixFiles.length; i++) {
           const fileName = fileMap.get(mixFiles[i])
           inputArgs.push('-i', fileName)
-          filterInputs.push(`[${i + 1}:a]`)
+          filterInputs.push(`[${i}:a]`)
         }
         
-        inputArgs.push('-i', clickFileName)
-        
         const filterComplex = `${filterInputs.join('')}amix=inputs=${mixFiles.length}[mixed]`
-        const clickTrackIndex = mixFiles.length + 1
         
-        ffmpegArgs.push(
+        mixCommand = [
           ...inputArgs,
           '-filter_complex', filterComplex,
-          '-c:v', 'libx264',
-          '-pix_fmt', 'yuv420p',
-          '-c:a', 'aac',
-          '-b:a', '320k',
+          '-map', '[mixed]',
+          '-c:a', 'pcm_s16le',
           '-ar', '48000',
           '-ac', '2',
-          '-map', '[mixed]',
-          '-map', `${clickTrackIndex}:a`,
-          '-metadata:s:a:0', 'title=Mixed Audio',
-          '-metadata:s:a:1', 'title=Click Track',
-          '-shortest',
-          outputFileName
-        )
+          mixedAudioFile
+        ]
       }
 
-      processingStep.value = 'Creating video with audio tracks...'
+      console.log('🔧 Mix command:', mixCommand)
+      await ffmpeg.value.exec(mixCommand)
+      console.log('✅ Mixed audio created successfully')
 
-      await ffmpeg.value.exec(ffmpegArgs)
+      processingStep.value = 'Generating waveform video...'
+      console.log('📊 Generating waveform video...')
+
+      // Create waveform video using the mixed audio
+      const waveformVideoFile = 'waveform_video.mp4'
+      const waveformCommand = [
+        '-i', mixedAudioFile,
+        '-filter_complex', 
+        'showwaves=s=320x240:mode=line:colors=0x667eea|0x764ba2:scale=sqrt',
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-pix_fmt', 'yuv420p',
+        '-r', '30',
+        waveformVideoFile
+      ]
+
+      console.log('🔧 Waveform command:', waveformCommand)
+      await ffmpeg.value.exec(waveformCommand)
+      console.log('✅ Waveform video created successfully')
+
+      processingStep.value = 'Combining video with audio tracks...'
+      console.log('🎬 Combining video with audio tracks...')
+
+      // Now combine the waveform video with both audio tracks
+      const outputFileName = 'output.mp4'
+      const clickFileName = fileMap.get(clickTrackFile)
+      
+      const finalCommand = [
+        '-i', waveformVideoFile,
+        '-i', mixedAudioFile,
+        '-i', clickFileName,
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-c:a', 'libmp3lame',
+        '-b:a', '320k',
+        '-ar', '48000',
+        '-ac', '2',
+        '-map', '0:v',
+        '-map', '1:a',
+        '-map', '2:a',
+        '-metadata:s:a:0', 'title=Mixed Audio',
+        '-metadata:s:a:1', 'title=Click Track',
+        '-shortest',
+        outputFileName
+      ]
+
+      console.log('🔧 Final command:', finalCommand)
+      await ffmpeg.value.exec(finalCommand)
+      console.log('✅ Final video created successfully')
 
       processingStep.value = 'Finalizing video...'
+      console.log('📦 Reading output file...')
 
       // Read the output file
       const data = await ffmpeg.value.readFile(outputFileName)
       const blob = new Blob([data.buffer], { type: 'video/mp4' })
       const url = URL.createObjectURL(blob)
       
+      console.log('✅ Video processing complete!')
       generatedVideoUrl.value = url
       success.value = true
       processingStep.value = 'Complete!'
 
       // Clean up files
       try {
+        console.log('🧹 Cleaning up temporary files...')
         await ffmpeg.value.deleteFile(outputFileName)
+        await ffmpeg.value.deleteFile(mixedAudioFile)
+        await ffmpeg.value.deleteFile(waveformVideoFile)
         for (const [_, fileName] of fileMap) {
           await ffmpeg.value.deleteFile(fileName)
         }
+        console.log('✅ Cleanup complete')
       } catch (e) {
-        console.warn('Cleanup error:', e)
+        console.warn('⚠️ Cleanup error:', e)
       }
 
     } catch (err) {
-      console.error('Processing error:', err)
+      console.error('❌ Processing error:', err)
+      console.error('Error details:', {
+        message: err.message,
+        stack: err.stack,
+        name: err.name
+      })
       error.value = err.message || 'An error occurred during processing'
     } finally {
       isProcessing.value = false
