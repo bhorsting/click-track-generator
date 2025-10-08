@@ -128,15 +128,17 @@ export function useClickTrackGenerator() {
       let ffmpegArgs = []
 
       if (mixFiles.length === 1) {
-        // Single mix file - create waveform video
+        // Single mix file - create simple video with text overlay
         ffmpegArgs.push(
+          '-f', 'lavfi',
+          '-i', 'color=c=black:s=320x240:r=30',
           '-i', mixFileName,
           '-i', clickFileName,
           '-filter_complex', 
-          '[0:a]showwaves=s=320x240:colors=blue|red:mode=line:rate=30[video]',
+          '[0:v]drawtext=text=\'Mixed Audio + Click Track\':fontcolor=white:fontsize=20:x=(w-text_w)/2:y=(h-text_h)/2[video]',
           '-map', '[video]',
-          '-map', '0:a',
           '-map', '1:a',
+          '-map', '2:a',
           '-c:v', 'libx264',
           '-pix_fmt', 'yuv420p',
           '-c:a', 'aac',
@@ -149,8 +151,8 @@ export function useClickTrackGenerator() {
           outputFileName
         )
       } else {
-        // Multiple mix files - create filter complex with waveform
-        const inputArgs = []
+        // Multiple mix files - create filter complex
+        const inputArgs = ['-f', 'lavfi', '-i', 'color=c=black:s=320x240:r=30']
         const filterInputs = []
         
         for (let i = 0; i < mixFiles.length; i++) {
@@ -161,7 +163,7 @@ export function useClickTrackGenerator() {
         
         inputArgs.push('-i', clickFileName)
         
-        const filterComplex = `${filterInputs.join('')}amix=inputs=${mixFiles.length}[mixed];[mixed]showwaves=s=320x240:colors=blue|red:mode=line:rate=30[video]`
+        const filterComplex = `${filterInputs.join('')}amix=inputs=${mixFiles.length}[mixed];[0:v]drawtext=text=\'Mixed Audio + Click Track\':fontcolor=white:fontsize=20:x=(w-text_w)/2:y=(h-text_h)/2[video]`
         const clickTrackIndex = mixFiles.length + 1
         
         ffmpegArgs.push(
