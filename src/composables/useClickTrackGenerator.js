@@ -133,7 +133,7 @@ export function useClickTrackGenerator() {
           '-i', mixFileName,
           '-i', clickFileName,
           '-filter_complex', 
-          `[0:a]showwaves=s=320x240:colors=0x667eea|0x764ba2:mode=line:rate=30,drawbox=x='t*320/duration':y=0:w=3:h=240:color=white:t=fill[video]`,
+          '[0:a]showwaves=s=320x240:colors=blue|red:mode=line:rate=30[video]',
           '-map', '[video]',
           '-map', '0:a',
           '-map', '1:a',
@@ -161,7 +161,7 @@ export function useClickTrackGenerator() {
         
         inputArgs.push('-i', clickFileName)
         
-        const filterComplex = `${filterInputs.join('')}amix=inputs=${mixFiles.length}[mixed];[mixed]showwaves=s=320x240:colors=0x667eea|0x764ba2:mode=line:rate=30,drawbox=x='t*320/duration':y=0:w=3:h=240:color=white:t=fill[video]`
+        const filterComplex = `${filterInputs.join('')}amix=inputs=${mixFiles.length}[mixed];[mixed]showwaves=s=320x240:colors=blue|red:mode=line:rate=30[video]`
         const clickTrackIndex = mixFiles.length + 1
         
         ffmpegArgs.push(
@@ -183,9 +183,14 @@ export function useClickTrackGenerator() {
         )
       }
 
-      processingStep.value = 'Rendering waveform video with moving cursor...'
+      processingStep.value = 'Rendering waveform video...'
 
-      await ffmpeg.value.exec(ffmpegArgs)
+      try {
+        await ffmpeg.value.exec(ffmpegArgs)
+      } catch (execError) {
+        console.error('FFmpeg execution error:', execError)
+        throw new Error(`FFmpeg processing failed: ${execError.message}`)
+      }
 
       processingStep.value = 'Finalizing video...'
 
