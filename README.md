@@ -6,7 +6,8 @@ A Vue 3 + Vite web application that processes WAV files and creates MP4 videos w
 
 - 📁 **Folder Upload**: Drag and drop or click to upload folders containing WAV files
 - 🎵 **Audio Processing**: Automatically sorts files by number and separates click track
-- 🎬 **Video Generation**: Creates 320x240 MP4 with mixed audio and separate click track
+- 🎬 **Animated Waveform Video**: Creates 320x240 MP4 with animated waveform and moving cursor
+- 🎨 **Visual Audio**: Full waveform display with real-time playhead movement
 - 📥 **Download**: Download the generated MP4 file
 - 🎥 **Preview**: View the generated video directly in the browser
 
@@ -27,6 +28,8 @@ Examples:
 1. **File Processing**: The last WAV file (highest number) becomes the "click track"
 2. **Audio Mixing**: All other WAV files are mixed into a stereo track
 3. **Video Creation**: FFmpeg creates a 320x240 MP4 with:
+   - Animated waveform visualization of the mixed audio
+   - Moving cursor/playhead that shows current playback position
    - Mixed audio track (all files except the last)
    - Separate click track (the last file)
 4. **Output**: Download the MP4 or view it in the browser
