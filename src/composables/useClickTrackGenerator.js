@@ -117,34 +117,31 @@ export function useClickTrackGenerator() {
         fileMap.set(file, sanitizedName)
       }
 
-      processingStep.value = 'Generating animated waveform...'
+      processingStep.value = 'Mixing audio tracks...'
 
       // Create the final video with both mixed audio and click track
       const outputFileName = 'output.mp4'
       const mixFileName = fileMap.get(mixFiles[0])
       const clickFileName = fileMap.get(clickTrackFile)
 
-      // Create animated waveform video with moving cursor
-      let ffmpegArgs = []
+      let ffmpegArgs = [
+        '-f', 'lavfi',
+        '-i', 'color=c=black:s=320x240:r=30'
+      ]
 
       if (mixFiles.length === 1) {
-        // Single mix file - create simple video with text overlay
+        // Single mix file
         ffmpegArgs.push(
-          '-f', 'lavfi',
-          '-i', 'color=c=black:s=320x240:r=30',
           '-i', mixFileName,
           '-i', clickFileName,
-          '-filter_complex', 
-          '[0:v]drawtext=text=\'Mixed Audio + Click Track\':fontcolor=white:fontsize=20:x=(w-text_w)/2:y=(h-text_h)/2[video]',
-          '-map', '[video]',
-          '-map', '1:a',
-          '-map', '2:a',
           '-c:v', 'libx264',
           '-pix_fmt', 'yuv420p',
           '-c:a', 'aac',
           '-b:a', '320k',
           '-ar', '48000',
           '-ac', '2',
+          '-map', '1:a',
+          '-map', '2:a',
           '-metadata:s:a:0', 'title=Mixed Audio',
           '-metadata:s:a:1', 'title=Click Track',
           '-shortest',
@@ -152,7 +149,7 @@ export function useClickTrackGenerator() {
         )
       } else {
         // Multiple mix files - create filter complex
-        const inputArgs = ['-f', 'lavfi', '-i', 'color=c=black:s=320x240:r=30']
+        const inputArgs = []
         const filterInputs = []
         
         for (let i = 0; i < mixFiles.length; i++) {
@@ -163,21 +160,20 @@ export function useClickTrackGenerator() {
         
         inputArgs.push('-i', clickFileName)
         
-        const filterComplex = `${filterInputs.join('')}amix=inputs=${mixFiles.length}[mixed];[0:v]drawtext=text=\'Mixed Audio + Click Track\':fontcolor=white:fontsize=20:x=(w-text_w)/2:y=(h-text_h)/2[video]`
+        const filterComplex = `${filterInputs.join('')}amix=inputs=${mixFiles.length}[mixed]`
         const clickTrackIndex = mixFiles.length + 1
         
         ffmpegArgs.push(
           ...inputArgs,
           '-filter_complex', filterComplex,
-          '-map', '[video]',
-          '-map', '[mixed]',
-          '-map', `${clickTrackIndex}:a`,
           '-c:v', 'libx264',
           '-pix_fmt', 'yuv420p',
           '-c:a', 'aac',
           '-b:a', '320k',
           '-ar', '48000',
           '-ac', '2',
+          '-map', '[mixed]',
+          '-map', `${clickTrackIndex}:a`,
           '-metadata:s:a:0', 'title=Mixed Audio',
           '-metadata:s:a:1', 'title=Click Track',
           '-shortest',
@@ -185,14 +181,9 @@ export function useClickTrackGenerator() {
         )
       }
 
-      processingStep.value = 'Rendering waveform video...'
+      processingStep.value = 'Creating video with audio tracks...'
 
-      try {
-        await ffmpeg.value.exec(ffmpegArgs)
-      } catch (execError) {
-        console.error('FFmpeg execution error:', execError)
-        throw new Error(`FFmpeg processing failed: ${execError.message}`)
-      }
+      await ffmpeg.value.exec(ffmpegArgs)
 
       processingStep.value = 'Finalizing video...'
 
