@@ -47,7 +47,7 @@
       <div v-if="selectedFiles.length > 0" style="margin-top: 1.5rem;">
         <button 
           class="btn" 
-          @click="processFiles"
+          @click="() => processFiles(progressCanvas)"
           :disabled="isProcessing"
         >
           {{ isProcessing ? 'Processing...' : 'Generate Video' }}
@@ -74,6 +74,11 @@
           <div class="progress-text">{{ progress }}%</div>
         </div>
       </div>
+    </div>
+
+    <!-- Canvas container - always in DOM -->
+    <div class="canvas-container" id="progressCanvas">
+      
     </div>
 
     <div v-if="error" class="card">
@@ -120,6 +125,7 @@ export default {
   setup() {
     const fileInput = ref(null)
     const videoPlayer = ref(null)
+    const progressCanvas = ref(null)
 
     const {
       selectedFiles,
@@ -168,6 +174,7 @@ export default {
       formattedDuration,
       fileInput,
       videoPlayer,
+      progressCanvas,
       sortedFiles,
       triggerFileInput,
       handleFileSelect,

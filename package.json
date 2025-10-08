@@ -10,9 +10,12 @@
     },
     "packageManager": "pnpm@8.15.0",
     "dependencies": {
-        "vue": "^3.4.0",
         "@ffmpeg/ffmpeg": "^0.12.10",
-        "@ffmpeg/util": "^0.12.1"
+        "@ffmpeg/util": "^0.12.1",
+        "canvas-context": "^3.3.1",
+        "canvas-record": "^5.4.2",
+        "media-codecs": "^2.0.2",
+        "vue": "^3.4.0"
     },
     "devDependencies": {
         "@vitejs/plugin-vue": "^5.0.0",
