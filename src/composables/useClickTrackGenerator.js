@@ -243,16 +243,15 @@ export function useClickTrackGenerator() {
           filterInputs.push(`[${i}:a]`);
         }
 
-        const filterComplex = `${filterInputs.join("")}amix=inputs=${
-          mixFiles.length
-        }:normalize=1[mixed]`;
+        const filterComplex = `${filterInputs.join("")}amix=inputs=${mixFiles.length}:normalize=1[mixed];[mixed]loudnorm=I=-14:TP=-1.0:LRA=11[out]`;
 
-        mixCommand = [
+
+          mixCommand = [
           ...inputArgs,
           "-filter_complex",
           filterComplex,
           "-map",
-          "[mixed]",
+          "[out]",
           "-c:a",
           "pcm_s16le",
           "-ar",
