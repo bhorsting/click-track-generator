@@ -245,7 +245,7 @@ export function useClickTrackGenerator() {
 
         const filterComplex = `${filterInputs.join("")}amix=inputs=${
           mixFiles.length
-        }[mixed]`;
+        }:normalize=1[mixed]`;
 
         mixCommand = [
           ...inputArgs,
@@ -275,8 +275,8 @@ export function useClickTrackGenerator() {
       const result = await renderWaveformToVideo({
         audioFile: fileData,
         duration: clickTrackDuration.value,
-        width: 320,
-        height: 240,
+        width: 1280,
+        height: 400,
         fps: 1,
       });
 
