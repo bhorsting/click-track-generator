@@ -227,7 +227,7 @@ export function useClickTrackGenerator() {
           "-c:a",
           "pcm_s16le",
           "-ar",
-          "48000",
+          "44100",
           "-ac",
           "2",
           mixedAudioFile,
@@ -243,10 +243,11 @@ export function useClickTrackGenerator() {
           filterInputs.push(`[${i}:a]`);
         }
 
-        const filterComplex = `${filterInputs.join("")}amix=inputs=${mixFiles.length}:normalize=1[mixed];[mixed]loudnorm=I=-14:TP=-1.0:LRA=11[out]`;
+        const filterComplex = `${filterInputs.join("")}amix=inputs=${
+          mixFiles.length
+        }:normalize=1[mixed];[mixed]loudnorm=I=-14:TP=-1.0:LRA=11[out]`;
 
-
-          mixCommand = [
+        mixCommand = [
           ...inputArgs,
           "-filter_complex",
           filterComplex,
@@ -255,7 +256,7 @@ export function useClickTrackGenerator() {
           "-c:a",
           "pcm_s16le",
           "-ar",
-          "48000",
+          "44100",
           "-ac",
           "2",
           mixedAudioFile,
@@ -347,24 +348,22 @@ export function useClickTrackGenerator() {
         "libx264",
         "-preset",
         "ultrafast",
-        "-c:a",
-        "libmp3lame",
-        "-b:a",
-        "320k",
-        "-ar",
-        "48000",
-        "-ac",
-        "2",
+        "-filter_complex",
+        "[1:a]pan=5.1|FL=0|FR=0|FC=0|LFE=0|BL=FL|BR=FR[sound_surround];[2:a]pan=5.1|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=0|BR=0[click_front];[sound_surround][click_front]amix=inputs=2:normalize=1[final_audio]",
         "-map",
         "0:v",
         "-map",
-        "1:a",
-        "-map",
-        "2:a",
+        "[final_audio]",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "159k",
+        "-ar",
+        "44100",
+        "-ac",
+        "6",
         "-metadata:s:a:0",
-        "title=Mixed Audio",
-        "-metadata:s:a:1",
-        "title=Click Track",
+        "title=5.1 Mixed Audio with Click Track",
         "-shortest",
         outputFileName,
       ];
