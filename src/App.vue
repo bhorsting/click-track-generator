@@ -2,11 +2,14 @@
   <div class="container">
     <div class="header">
       <h1>Click Track Generator</h1>
-      <p>Upload a folder of WAV files to create a mixed audio track with click track</p>
+      <p>
+        Upload a folder of WAV files to create a mixed audio track with click
+        track
+      </p>
     </div>
 
     <div class="card">
-      <div 
+      <div
         class="upload-area"
         :class="{ dragover: isDragOver }"
         @click="triggerFileInput"
@@ -16,10 +19,15 @@
       >
         <div class="upload-icon">📁</div>
         <div class="upload-text">
-          {{ selectedFiles.length > 0 ? 'Files Selected' : 'Click or drag files here' }}
+          {{
+            selectedFiles.length > 0
+              ? "Files Selected"
+              : "Click or drag files here"
+          }}
         </div>
         <div class="upload-subtext">
-          Select multiple WAV files or a folder containing WAV files with numbered names
+          Select multiple WAV files or a folder containing WAV files with
+          numbered names
         </div>
         <input
           ref="fileInput"
@@ -43,16 +51,16 @@
         </div>
       </div>
 
-      <div v-if="selectedFiles.length > 0" style="margin-top: 1.5rem;">
-        <button 
-          class="btn" 
+      <div v-if="selectedFiles.length > 0" style="margin-top: 1.5rem">
+        <button
+          class="btn"
           @click="() => processFiles(progressCanvas)"
           :disabled="isProcessing"
         >
-          {{ isProcessing ? 'Processing...' : 'Generate Video' }}
+          {{ isProcessing ? "Processing..." : "Generate Video" }}
         </button>
-        <button 
-          class="btn btn-secondary" 
+        <button
+          class="btn btn-secondary"
           @click="clearFiles"
           :disabled="isProcessing"
         >
@@ -76,14 +84,10 @@
     </div>
 
     <!-- Canvas container - always in DOM -->
-    <div class="canvas-container" id="progressCanvas">
-      
-    </div>
+    <div class="canvas-container" id="progressCanvas"></div>
 
     <div v-if="error" class="card">
-      <div class="error">
-        <strong>Error:</strong> {{ error }}
-      </div>
+      <div class="error"><strong>Error:</strong> {{ error }}</div>
     </div>
 
     <div v-if="success" class="card">
@@ -95,20 +99,22 @@
     <div v-if="generatedVideoUrl" class="card">
       <div class="video-container">
         <h3>Generated Video</h3>
-        <video 
+        <video
           ref="videoPlayer"
           class="video-player"
           :src="generatedVideoUrl"
           controls
           preload="metadata"
         ></video>
-        
+
         <div class="download-section">
-          <button 
+          <button
             class="btn"
             @click="downloadVideo"
             :disabled="!generatedVideoUrl"
-          > Download MP4</button>
+          >
+            Download MP4
+          </button>
         </div>
       </div>
     </div>
@@ -116,15 +122,15 @@
 </template>
 
 <script>
-import { ref } from 'vue'
-import { useClickTrackGenerator } from './composables/useClickTrackGenerator.js'
+import { ref } from "vue";
+import { useClickTrackGenerator } from "./composables/useClickTrackGenerator.js";
 
 export default {
-  name: 'App',
+  name: "App",
   setup() {
-    const fileInput = ref(null)
-    const videoPlayer = ref(null)
-    const progressCanvas = ref(null)
+    const fileInput = ref(null);
+    const videoPlayer = ref(null);
+    const progressCanvas = ref(null);
 
     const {
       selectedFiles,
@@ -145,19 +151,19 @@ export default {
       handleDrop,
       clearFiles,
       processFiles,
-      downloadVideo
-    } = useClickTrackGenerator()
+      downloadVideo,
+    } = useClickTrackGenerator();
 
     const triggerFileInput = () => {
-      fileInput.value?.click()
-    }
+      fileInput.value?.click();
+    };
 
     const handleClearFiles = () => {
-      clearFiles()
+      clearFiles();
       if (fileInput.value) {
-        fileInput.value.value = ''
+        fileInput.value.value = "";
       }
-    }
+    };
 
     return {
       selectedFiles,
@@ -182,8 +188,8 @@ export default {
       handleDrop,
       clearFiles: handleClearFiles,
       processFiles,
-      downloadVideo
-    }
-  }
-}
+      downloadVideo,
+    };
+  },
+};
 </script>

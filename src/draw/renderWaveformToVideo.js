@@ -32,7 +32,7 @@ export async function renderWaveformToVideo({
     samples,
     width * pixelRatio,
     height * pixelRatio,
-    waveformContext
+    waveformContext,
   );
   const totalFrames = Math.ceil(duration * fps);
 

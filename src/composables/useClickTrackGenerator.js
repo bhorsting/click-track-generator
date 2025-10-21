@@ -16,6 +16,7 @@ export function useClickTrackGenerator() {
   const progressMessage = ref("");
   const clickTrackDuration = ref(0);
   let progressInterval = null;
+  let ffmpegObject = null;
 
   const startProgressSimulation = (message, duration = 5000) => {
     progress.value = 0;
@@ -83,7 +84,7 @@ export function useClickTrackGenerator() {
 
   const handleFileSelect = async (event) => {
     const files = Array.from(event.target.files).filter((file) =>
-      file.name.toLowerCase().endsWith(".wav")
+      file.name.toLowerCase().endsWith(".wav"),
     );
     selectedFiles.value = files;
     error.value = "";
@@ -113,7 +114,7 @@ export function useClickTrackGenerator() {
   const handleDrop = async (event) => {
     isDragOver.value = false;
     const files = Array.from(event.dataTransfer.files).filter((file) =>
-      file.name.toLowerCase().endsWith(".wav")
+      file.name.toLowerCase().endsWith(".wav"),
     );
     selectedFiles.value = files;
     error.value = "";
@@ -144,14 +145,17 @@ export function useClickTrackGenerator() {
     if (ffmpeg.value) return;
 
     processingStep.value = "Loading FFmpeg...";
-    ffmpeg.value = new FFmpeg();
+    ffmpegObject = new FFmpeg();
+    ffmpeg.value = ffmpegObject;
+
+    window.ffmpegObject = ffmpegObject;
 
     const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
-    await ffmpeg.value.load({
+    await ffmpegObject.load({
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
       wasmURL: await toBlobURL(
         `${baseURL}/ffmpeg-core.wasm`,
-        "application/wasm"
+        "application/wasm",
       ),
     });
   };
@@ -171,7 +175,7 @@ export function useClickTrackGenerator() {
       const sortedFilesList = sortedFiles.value;
       console.log(
         `📁 Processing ${sortedFilesList.length} files:`,
-        sortedFilesList.map((f) => f.name)
+        sortedFilesList.map((f) => f.name),
       );
 
       if (sortedFilesList.length < 2) {
@@ -184,7 +188,7 @@ export function useClickTrackGenerator() {
 
       console.log(
         "🎵 Mix files:",
-        mixFiles.map((f) => f.name)
+        mixFiles.map((f) => f.name),
       );
       console.log("🎯 Click track:", clickTrackFile.name);
 
@@ -194,9 +198,9 @@ export function useClickTrackGenerator() {
       // Clean up any existing files first
       try {
         console.log("🧹 Cleaning up existing files...");
-        await ffmpeg.value.deleteFile("output.mp4");
-        await ffmpeg.value.deleteFile("mixed_audio.wav");
-        await ffmpeg.value.deleteFile("waveform_video.mp4");
+        await ffmpegObject.deleteFile("output.mp4");
+        await ffmpegObject.deleteFile("mixed_audio.wav");
+        await ffmpegObject.deleteFile("waveform_video.mp4");
       } catch (e) {
         console.log("ℹ️ No existing files to clean up");
       }
@@ -208,7 +212,7 @@ export function useClickTrackGenerator() {
         const sanitizedName = `input${i}.wav`;
         console.log(`📝 Writing ${file.name} as ${sanitizedName}`);
         const data = await fetchFile(file);
-        await ffmpeg.value.writeFile(sanitizedName, data);
+        await ffmpegObject.writeFile(sanitizedName, data);
         fileMap.set(file, sanitizedName);
       }
 
@@ -217,6 +221,8 @@ export function useClickTrackGenerator() {
 
       // First, create the mixed audio track
       const mixedAudioFile = "mixed_audio.wav";
+      const normalisedAudioFile = "normalised_audio.wav";
+
       let mixCommand = [];
 
       if (mixFiles.length === 1) {
@@ -245,7 +251,7 @@ export function useClickTrackGenerator() {
 
         const filterComplex = `${filterInputs.join("")}amix=inputs=${
           mixFiles.length
-        }:normalize=1[mixed];[mixed]loudnorm=I=-14:TP=-1.0:LRA=11[out]`;
+        }:normalize=0[out]`;
 
         mixCommand = [
           ...inputArgs,
@@ -265,12 +271,72 @@ export function useClickTrackGenerator() {
 
       console.log("🔧 Mix command:", mixCommand);
       startProgressSimulation("Mixing audio...");
-      await ffmpeg.value.exec(mixCommand);
+      await ffmpegObject.exec(mixCommand);
+
+      startProgressSimulation("Finding volume levels...");
+
+      let jsonOutput = "";
+      let addingJson = false;
+      let volumeData = null;
+      ffmpegObject.on("log", (log) => {
+        console.log(`FFmpeg log: ${log.message}`);
+        if (log.message === "{") {
+          jsonOutput = log.message;
+          addingJson = true;
+        } else if (addingJson) {
+          jsonOutput += log.message;
+          if (log.message === "}") {
+            addingJson = false;
+            try {
+              volumeData = JSON.parse(jsonOutput);
+              console.log("🔊 Volume normalization data:", volumeData);
+            } catch (e) {
+              console.error("❌ Error parsing volume normalization JSON:", e);
+            }
+          }
+        }
+      });
+
+      const findVolumeCommand = [
+        "-i",
+        mixedAudioFile,
+        "-af",
+        "loudnorm=print_format=json",
+        "-f",
+        "null",
+        "/dev/null",
+      ];
+
+      await ffmpegObject.exec(findVolumeCommand);
+      ffmpegObject.off("log");
+
+      if (volumeData) {
+        stopProgressSimulation("Volume levels found");
+        startProgressSimulation("🔊 Applying volume normalization...");
+        // Now apply volume normalization
+        const normalizeCommand = [
+          "-i",
+          mixedAudioFile,
+          "-af",
+          `loudnorm=I=-16:LRA=11:tp=-1.5:measured_I=${volumeData.input_i}:measured_TP=${volumeData.input_tp}:measured_LRA=${volumeData.input_lra}:measured_thresh=${volumeData.input_thresh}:offset=${volumeData.target_offset}:linear=true:print_format=summary`,
+          "-c:a",
+          "pcm_s16le",
+          "-ar",
+          "44100",
+          "-ac",
+          "2",
+          normalisedAudioFile,
+        ];
+
+        console.log("🔧 Normalize command:", normalizeCommand);
+        await ffmpegObject.exec(normalizeCommand);
+        stopProgressSimulation("Volume normalization applied");
+      }
 
       processingStep.value = "Rendering waveform...";
       console.log("🎨 Rendering waveform...");
 
-      const fileData = await ffmpeg.value.readFile(mixedAudioFile);
+      const fileData = await ffmpegObject.readFile(normalisedAudioFile);
 
       const result = await renderWaveformToVideo({
         audioFile: fileData,
@@ -298,35 +364,10 @@ export function useClickTrackGenerator() {
       const file = await result.promise;
       console.log("file", file);
 
-      ffmpeg.value.writeFile(waveformVideoFile, new Uint8Array(file));
+      ffmpegObject.writeFile(waveformVideoFile, new Uint8Array(file));
 
       console.log("✅ Mixed audio created successfully");
 
-      /*processingStep.value = "Generating waveform video...";
-      console.log("📊 Generating waveform video...");
-
-      // Create waveform video using the mixed audio
-      const waveformVideoFile = "waveform_video.mp4";
-      const waveformCommand = [
-        "-i",
-        mixedAudioFile,
-        "-filter_complex",
-        "showwaves=s=320x240:mode=line:draw=full:colors=0xffffff|0xff6600:scale=sqrt",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "ultrafast",
-        "-pix_fmt",
-        "yuv420p",
-        "-r",
-        "30",
-        waveformVideoFile,
-      ];
-
-      console.log("🔧 Waveform command:", waveformCommand);
-      startProgressSimulation("Generating waveform...");
-      await ffmpeg.value.exec(waveformCommand);
-      */
       stopProgressSimulation("Waveform complete");
       console.log("✅ Waveform video created successfully");
 
@@ -341,7 +382,7 @@ export function useClickTrackGenerator() {
         "-i",
         waveformVideoFile,
         "-i",
-        mixedAudioFile,
+        normalisedAudioFile,
         "-i",
         clickFileName,
         "-c:v",
@@ -370,7 +411,7 @@ export function useClickTrackGenerator() {
 
       console.log("🔧 Final command:", finalCommand);
       startProgressSimulation("Finalizing video...");
-      await ffmpeg.value.exec(finalCommand);
+      await ffmpegObject.exec(finalCommand);
       stopProgressSimulation("Video complete");
       console.log("✅ Final video created successfully");
 
@@ -378,7 +419,7 @@ export function useClickTrackGenerator() {
       console.log("📦 Reading output file...");
 
       // Read the output file
-      const data = await ffmpeg.value.readFile(outputFileName);
+      const data = await ffmpegObject.readFile(outputFileName);
       const blob = new Blob([data.buffer], { type: "video/mp4" });
       const url = URL.createObjectURL(blob);
 
@@ -390,11 +431,12 @@ export function useClickTrackGenerator() {
       // Clean up files
       try {
         console.log("🧹 Cleaning up temporary files...");
-        await ffmpeg.value.deleteFile(outputFileName);
-        await ffmpeg.value.deleteFile(mixedAudioFile);
-        await ffmpeg.value.deleteFile(waveformVideoFile);
+        await ffmpegObject.deleteFile(outputFileName);
+        await ffmpegObject.deleteFile(mixedAudioFile);
+        await ffmpegObject.deleteFile(waveformVideoFile);
+        await ffmpegObject.deleteFile(normalisedAudioFile);
         for (const [_, fileName] of fileMap) {
-          await ffmpeg.value.deleteFile(fileName);
+          await ffmpegObject.deleteFile(fileName);
         }
         console.log("✅ Cleanup complete");
       } catch (e) {
