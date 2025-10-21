@@ -16,15 +16,14 @@
       >
         <div class="upload-icon">📁</div>
         <div class="upload-text">
-          {{ selectedFiles.length > 0 ? 'Files Selected' : 'Click or drag folder here' }}
+          {{ selectedFiles.length > 0 ? 'Files Selected' : 'Click or drag files here' }}
         </div>
         <div class="upload-subtext">
-          Select a folder containing WAV files with numbered names
+          Select multiple WAV files or a folder containing WAV files with numbered names
         </div>
         <input
           ref="fileInput"
           type="file"
-          webkitdirectory
           multiple
           accept=".wav"
           @change="handleFileSelect"
