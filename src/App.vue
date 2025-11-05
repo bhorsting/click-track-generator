@@ -113,7 +113,7 @@
             @click="downloadVideo"
             :disabled="!generatedVideoUrl"
           >
-            Download MP4
+            Download All (Video + Audio)
           </button>
         </div>
       </div>

@@ -10,6 +10,8 @@ export function useClickTrackGenerator() {
   const error = ref("");
   const success = ref(false);
   const generatedVideoUrl = ref("");
+  const clickTrackWavUrl = ref("");
+  const mixedAudioWavUrl = ref("");
   const processingStep = ref("");
   const ffmpeg = ref(null);
   const progress = ref(0);
@@ -84,12 +86,14 @@ export function useClickTrackGenerator() {
 
   const handleFileSelect = async (event) => {
     const files = Array.from(event.target.files).filter((file) =>
-      file.name.toLowerCase().endsWith(".wav"),
+      file.name.toLowerCase().endsWith(".wav")
     );
     selectedFiles.value = files;
     error.value = "";
     success.value = false;
     generatedVideoUrl.value = "";
+    clickTrackWavUrl.value = "";
+    mixedAudioWavUrl.value = "";
 
     // Extract click track duration if we have files
     if (files.length > 0) {
@@ -114,12 +118,14 @@ export function useClickTrackGenerator() {
   const handleDrop = async (event) => {
     isDragOver.value = false;
     const files = Array.from(event.dataTransfer.files).filter((file) =>
-      file.name.toLowerCase().endsWith(".wav"),
+      file.name.toLowerCase().endsWith(".wav")
     );
     selectedFiles.value = files;
     error.value = "";
     success.value = false;
     generatedVideoUrl.value = "";
+    clickTrackWavUrl.value = "";
+    mixedAudioWavUrl.value = "";
 
     // Extract click track duration if we have files
     if (files.length > 0) {
@@ -138,6 +144,8 @@ export function useClickTrackGenerator() {
     error.value = "";
     success.value = false;
     generatedVideoUrl.value = "";
+    clickTrackWavUrl.value = "";
+    mixedAudioWavUrl.value = "";
     clickTrackDuration.value = 0;
   };
 
@@ -155,7 +163,7 @@ export function useClickTrackGenerator() {
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
       wasmURL: await toBlobURL(
         `${baseURL}/ffmpeg-core.wasm`,
-        "application/wasm",
+        "application/wasm"
       ),
     });
   };
@@ -168,6 +176,8 @@ export function useClickTrackGenerator() {
       error.value = "";
       success.value = false;
       generatedVideoUrl.value = "";
+      clickTrackWavUrl.value = "";
+      mixedAudioWavUrl.value = "";
 
       console.log("🎬 Starting video processing...");
       await initializeFFmpeg();
@@ -175,7 +185,7 @@ export function useClickTrackGenerator() {
       const sortedFilesList = sortedFiles.value;
       console.log(
         `📁 Processing ${sortedFilesList.length} files:`,
-        sortedFilesList.map((f) => f.name),
+        sortedFilesList.map((f) => f.name)
       );
 
       if (sortedFilesList.length < 2) {
@@ -188,7 +198,7 @@ export function useClickTrackGenerator() {
 
       console.log(
         "🎵 Mix files:",
-        mixFiles.map((f) => f.name),
+        mixFiles.map((f) => f.name)
       );
       console.log("🎯 Click track:", clickTrackFile.name);
 
@@ -425,6 +435,21 @@ export function useClickTrackGenerator() {
 
       console.log("✅ Video processing complete!");
       generatedVideoUrl.value = url;
+
+      // Read and save clicktrack WAV and mixed audio WAV before cleanup
+      console.log("💾 Saving clicktrack and mixed audio WAV files...");
+      const clickTrackData = await ffmpegObject.readFile(clickFileName);
+      const clickTrackBlob = new Blob([clickTrackData.buffer], {
+        type: "audio/wav",
+      });
+      clickTrackWavUrl.value = URL.createObjectURL(clickTrackBlob);
+
+      const mixedAudioData = await ffmpegObject.readFile(normalisedAudioFile);
+      const mixedAudioBlob = new Blob([mixedAudioData.buffer], {
+        type: "audio/wav",
+      });
+      mixedAudioWavUrl.value = URL.createObjectURL(mixedAudioBlob);
+
       success.value = true;
       processingStep.value = "Complete!";
 
@@ -462,12 +487,37 @@ export function useClickTrackGenerator() {
   const downloadVideo = () => {
     if (!generatedVideoUrl.value) return;
 
-    const link = document.createElement("a");
-    link.href = generatedVideoUrl.value;
-    link.download = "click-track-video.mp4";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Download video
+    const videoLink = document.createElement("a");
+    videoLink.href = generatedVideoUrl.value;
+    videoLink.download = "click-track-video.mp4";
+    document.body.appendChild(videoLink);
+    videoLink.click();
+    document.body.removeChild(videoLink);
+
+    // Download clicktrack WAV
+    if (clickTrackWavUrl.value) {
+      setTimeout(() => {
+        const clickLink = document.createElement("a");
+        clickLink.href = clickTrackWavUrl.value;
+        clickLink.download = "clicktrack.wav";
+        document.body.appendChild(clickLink);
+        clickLink.click();
+        document.body.removeChild(clickLink);
+      }, 100);
+    }
+
+    // Download mixed audio WAV
+    if (mixedAudioWavUrl.value) {
+      setTimeout(() => {
+        const audioLink = document.createElement("a");
+        audioLink.href = mixedAudioWavUrl.value;
+        audioLink.download = "mixed-audio.wav";
+        document.body.appendChild(audioLink);
+        audioLink.click();
+        document.body.removeChild(audioLink);
+      }, 200);
+    }
   };
 
   return {
@@ -478,6 +528,8 @@ export function useClickTrackGenerator() {
     error,
     success,
     generatedVideoUrl,
+    clickTrackWavUrl,
+    mixedAudioWavUrl,
     processingStep,
     progress,
     progressMessage,
